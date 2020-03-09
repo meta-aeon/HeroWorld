@@ -14,7 +14,7 @@
 # Being "unique" ('unique 1' in the map editor) allows the ship to not reset its location and contents with each map reset.
 #
 # CHANGING THIS SCRIPT:
-# 'tree5' is a placeholder non-exit item we use.  You can change it, but if you make it an exit then strange things might occur die to the 'unique 1' value.
+# 'tree5' is a placeholder non-exit item we use.  You can change it, but if you make it an exit then strange things might occur due to the 'unique 1' value.
 # More importantly, the exit is set to coordinates 8, 4.  If you change the template map's exit tile, then you need to change these coordinates as well.
 # Lastly, if you change the folder that the ship-cabins and serial are stored in, don't forget to change it everywhere.
 #
