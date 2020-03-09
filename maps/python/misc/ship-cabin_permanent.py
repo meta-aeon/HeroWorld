@@ -20,9 +20,7 @@
 #
 
 import Crossfire
-import random
 import os.path
-from shutil import copyfile
 
 # This is where the pointer to the ship is stored.
 cabindict = Crossfire.GetPrivateDictionary()
@@ -74,7 +72,7 @@ def do_back():
 	
 	if (dest == None):
 		# Weeger thinks this can happen if we teleport from a random map.  Probably not an issue for us, but let's leave it in just in case.
-		act.Message('The %s rattles. It can\'t take you back to your starting point.'%l.Name)
+		act.Message('ERROR: Can\'t return to starting point.  Were you in a random map?  Returning to spawn point instead.')
 		return_to_bed()
 		return
 
@@ -86,8 +84,6 @@ def do_cabin():
 	if l.ReadKey('ship_serial') is not '':# Teleports the player in if the map's already made
 		shipserial = str(l.ReadKey('ship_serial'))
 		dest = Crossfire.ReadyMap('/ship-cabins/cabin-' + shipserial)
-		act.Message('You enter the ship\'s cabin.')
-		act.Teleport(dest, 0, 0)
 		
 	else:# Creates the map before sending the player to it
 		datadir = Crossfire.DataDirectory()
@@ -109,7 +105,14 @@ def do_cabin():
 		cabinfile = (str(datadir) + '/' + str(mapdir) + '/ship-cabins/cabin-' + shipserial)# Names our copy of the template map as ending in the serial number, like "cabin-7"
 		
 		if not os.path.exists(cabinfile):# If the map doesn't exist (it shouldn't), we create it.
-			copyfile(template, cabinfile)#TODO: Change the "name" line in the map file, so they have different names.  Does the map name field matter?
+			
+			# First we look at the template, and grab all of it (but replace the word "template" with the shipserial
+			with open(template, 'r') as tfile:
+				tdata = (tfile.read().replace('template', str(shipserial)))
+			# Now we write the new file
+			with open(cabinfile, 'w') as cfile:
+				cfile.write(tdata)
+			
 			dest = Crossfire.ReadyMap('/ship-cabins/cabin-' + shipserial)
 			# Invisible exit, it decouples the player and the ship.  Should be at x,y = 0,0, and the player should enter the map at those coords.  HP and SP are x,y of where the inex will teleport the player afterward.
 			inex = Crossfire.CreateObjectByName('invis_exit')
@@ -130,15 +133,17 @@ def do_cabin():
 			cabexeva.Slaying = str(Crossfire.ScriptName()).replace((str(datadir) + '/' + str(mapdir)), '')# This should point to the path of this script file (filename included), relative to the map directory.
 			cabexeva.InsertInto(cabexdoor)# Attaching the script to the door
 			l.WriteKey('ship_serial', str(shipserial), 1)
-			# Teleport
-			act.Message('You enter the ship\'s cabin.')
-			act.Teleport(dest, 0, 0)
+			
 		else:
 			act.Message('ERROR: The cabin map file already exists, but the door didn\'t have a connector to it.  The contents of the /ship-cabins/ directory may need fixing.')
 			# If the above ever happens, it's possible that the shipserial file got deleted or reset.
 			# To fix that, set the number in the file to be equal to the highest suffix in that folder (so if /ship-cabins/cabin-42 exists, the contents of the serial should just be 42)
 			# You may instead need to check the permissions on the folder, but if CF can't write to its own folders then you probably see many other errors.
 		
+	#Teleport the player
+	act.Message('You enter the ship\'s cabin.')
+	act.Teleport(dest, 0, 0)
+	
 	cabexdoor = dest.Check('tree5', (8, 4))# If you want to use a different placeholder item for the cabin exit, change all references to "tree5" to your new arch
 	shipserial = str(cabexdoor.ReadKey('ship_serial'))
 	cabindict[shipserial] = Crossfire.WhoAmI()# Stores a pointer to the ship's (external) door's location, and associates it with the internal cabin door
