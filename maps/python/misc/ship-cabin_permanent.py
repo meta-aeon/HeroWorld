@@ -8,15 +8,23 @@
 # When they exit the cabin, they should appear wherever the ship is, rather than where it was.
 # 
 # USING THIS SCRIPT:
-# To use this script, there needs to be a writable map folder with a cabin template (see the 'template' variable).
-# We're using /ship-cabins/, off of the maps folder.
-# This script also expects an 'event_apply' event to be both on a unique ship and on a unique item called "cabin door" in that boat's inventory.
-# Being "unique" ('unique 1' in the map editor) allows the ship to not reset its location and contents with each map reset.
+# 1. Make sure there's a default template at maps/ship-cabins/cabin-template.  Other templates go in the same folder.
+# 2. Make a ship "unique" using the map editor (add "unique 1" to its Text Editor tab)
+# 3. Add to the ship's inventory an object named "cabin door", with "type 0" and "unique 1".
+# 4. Add to the ship's inventory an "event_apply" object.  The plugin name should be "Python", and it should point to this script.
+# 5. Add a copy of that "event_apply" object to the cabin door's inventory.
+# 
+# MAKING AND USING TEMPLATES:
+# 1. Templates go in maps/ship-cabins/<mapname>
+# 2. In the template file, the tile at 0,0 must be unique ("unique 1" in the Text Editor tab) and not a tile that the player can step on.
+# 3. In the map properties, you must specify an "Enter X" and "Enter Y" (Map > Map Properties > Parameters).  The door will show up at that position.
+# 4. The X,Y of the entry should also be "unique 1".
+# 5. To make a ship use a specific template, just put the name of the template file in the cabin door's "Msg Text" tab.  See the Zephyr's door for an example.
+# Note: While the intent is for the entire cabin interior to be unique, only the above specified tiles actually need to be.
 #
 # CHANGING THIS SCRIPT:
 # 'tree5' is a placeholder non-exit item we use.  You can change it, but if you make it an exit then strange things might occur due to the 'unique 1' value.
-# More importantly, the exit is set to coordinates 8, 4.  If you change the template map's exit tile, then you need to change these coordinates as well.
-# Lastly, if you change the folder that the ship-cabins and serial are stored in, don't forget to change it everywhere.
+# If you change the folder that the templates, ship-cabins, and serial are stored in, don't forget to change it everywhere.
 #
 
 import Crossfire
@@ -101,7 +109,12 @@ def do_cabin():
 		with open(str(datadir) + '/' + str(mapdir) + '/ship-cabins/ship-serial.txt', 'w') as shipfile:# Overwrite the old file with the new serial
 			shipfile.write(str(shipserial))
 		
-		template = (str(datadir) + '/' + str(mapdir) + '/ship-cabins/cabin-template')# Template for the cabin map.  We could have this randomly picked from a list of template maps, but right now we just have the one template.
+		if l.Message is None:#if l.Message (the Msg Text for the cabin door) isn't specified, we use a default template.
+			template = (str(datadir) + '/' + str(mapdir) + '/ship-cabins/cabin-template')# Default template, if the template isn't specified.
+		else:
+			templatemsg = str(l.Message).rstrip("\n")
+			template = (str(datadir) + '/' + str(mapdir) + '/ship-cabins/' + templatemsg)
+			
 		cabinfile = (str(datadir) + '/' + str(mapdir) + '/ship-cabins/cabin-' + shipserial)# Names our copy of the template map as ending in the serial number, like "cabin-7"
 		
 		if not os.path.exists(cabinfile):# If the map doesn't exist (it shouldn't), we create it.
@@ -117,15 +130,15 @@ def do_cabin():
 			# Invisible exit, it decouples the player and the ship.  Should be at x,y = 0,0, and the player should enter the map at those coords.  HP and SP are x,y of where the inex will teleport the player afterward.
 			inex = Crossfire.CreateObjectByName('invis_exit')
 			inex.Slaying = dest.Path
-			inex.HP = 8
-			inex.SP = 4
+			inex.HP = int(dest.EnterX) #We look at the template map's "EnterX" and "EnterY" (specified in the map properties).  We also do this for the cabexdoor a couple of times in this script.
+			inex.SP = int(dest.EnterY)
 			inex.Teleport(dest, 0, 0)
 			# The cabin's exit door.
 			cabexdoor = Crossfire.CreateObjectByName('tree5')# Avoiding making it an actual exit, because the "unique" flag does special things to exits (and we don't want that)
 			cabexdoor.Unique = 1
 			cabexdoor.Face = 'oakdoor_1.111'
 			cabexdoor.Name = 'oak door'
-			cabexdoor.Teleport(dest, 8, 4)
+			cabexdoor.Teleport(dest, int(dest.EnterX), int(dest.EnterY))
 			cabexdoor.WriteKey('cabin_exit', '1', 1)
 			cabexdoor.WriteKey('ship_serial', str(shipserial), 1)
 			cabexeva = Crossfire.CreateObjectByName('event_apply')# The script that we attach to the door, to return the player to the current boat location
@@ -144,7 +157,7 @@ def do_cabin():
 	act.Message('You enter the ship\'s cabin.')
 	act.Teleport(dest, 0, 0)
 	
-	cabexdoor = dest.Check('tree5', (8, 4))# If you want to use a different placeholder item for the cabin exit, change all references to "tree5" to your new arch
+	cabexdoor = dest.Check('tree5', (int(dest.EnterX), int(dest.EnterY)))# If you want to use a different placeholder item for the cabin exit, change all references to "tree5" to your new arch
 	shipserial = str(cabexdoor.ReadKey('ship_serial'))
 	cabindict[shipserial] = Crossfire.WhoAmI()# Stores a pointer to the ship's (external) door's location, and associates it with the internal cabin door
 	cabexdoor.WriteKey('backup-loc_x', str(l.Env.X), 1)# Backs up the ship's location, similar to do_backup_loc()
@@ -157,7 +170,7 @@ def do_backup_loc():
 	if l.CheckInventory('cabin door').ReadKey('ship_serial') is not '':
 		shipserial = l.CheckInventory('cabin door').ReadKey('ship_serial')
 		dest = Crossfire.ReadyMap('/ship-cabins/cabin-' + shipserial)# We need to map to grab the door
-		cabexdoor = dest.Check('tree5', (8, 4))
+		cabexdoor = dest.Check('tree5', (int(dest.EnterX), int(dest.EnterY)))
 		cabexdoor.WriteKey('backup-loc_x', str(l.X), 1)
 		cabexdoor.WriteKey('backup-loc_y', str(l.Y), 1)
 		cabexdoor.WriteKey('backup-loc_map', str(l.Map.Path), 1)
